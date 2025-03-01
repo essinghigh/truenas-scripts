@@ -1,11 +1,13 @@
 #!/bin/bash
+set -euo pipefail
+trap 'echo "Error occurred at line $LINENO" >&2; exit 1' ERR
+log() { echo "[$(date)] $*"; }
 
 # ---------------------------
 # Configuration Management
 # ---------------------------
 CONFIG_FILE="$(dirname "$0")/update_apps.toml"
 if [ -f "$CONFIG_FILE" ]; then
-    # Parse general hostname from config, if set
     config_hostname=$(grep '^hostname' "$CONFIG_FILE" | head -n 1 | awk -F'=' '{print $2}' | sed 's/[#].*//' | tr -d ' "')
     if [ -n "$config_hostname" ]; then
        hostname="$config_hostname"
@@ -40,34 +42,33 @@ upgrade_count=0
 # ---------------------------
 # Catalog Synchronization
 # ---------------------------
-echo "[$(date)] Starting catalog sync..."
+log "Starting catalog sync..."
 midclt call catalog.sync > /dev/null
-echo "-----------------------------------------"
+log "-----------------------------------------"
 
 # ---------------------------
 # Check Available Upgrades
 # ---------------------------
-echo "[$(date)] Checking for non-custom apps with available upgrades..."
+log "Checking for non-custom apps with available upgrades..."
 apps_list=$(midclt call app.query | \
     jq -r '.[] |
            select(.custom_app != true and .upgrade_available == true) |
            "\(.name)\t\(.version)\t\(.upgrade_available)"')
 
 if [ -z "$apps_list" ]; then
-    echo "[$(date)] No updates available for non-custom applications"
-    echo "-----------------------------------------"
+    log "No updates available for non-custom applications"
+    log "-----------------------------------------"
     exit 0
 fi
 
-echo "[$(date)] Found updates for the following apps:"
-echo "$apps_list" | awk -F'\t' '{print "• " $1 " (Current: " $2 ")"}'
-echo "-----------------------------------------"
+log "Found updates for the following apps:"
+log "$apps_list" | awk -F'\t' '{print "• " $1 " (Current: " $2 ")"}'
+log "-----------------------------------------"
 
 # ---------------------------
 # Process Upgrades
 # ---------------------------
 while IFS=$'\t' read -r app_name current_version has_update; do
-    # Check if the current app is in the exclude list
     skip_app=false
     for e in "${exclude_apps[@]}"; do
         if [ "$app_name" = "${e// /}" ]; then
@@ -76,25 +77,25 @@ while IFS=$'\t' read -r app_name current_version has_update; do
         fi
     done
     if [ "$skip_app" = true ]; then
-        echo "[$(date)] Skipping excluded app: $app_name"
-        echo "-----------------------------------------"
+        log "Skipping excluded app: $app_name"
+        log "-----------------------------------------"
         continue
     fi
 
     [ "$has_update" != "true" ] && continue
 
-    echo "[$(date)] Processing: $app_name"
+    log "Processing: $app_name"
     if [ "$debug_enabled" = "true" ]; then
-        echo "DEBUG: App $app_name - current version: $current_version, has_update: $has_update"
+        log "DEBUG: App $app_name - current version: $current_version, has_update: $has_update"
     fi
 
-    echo "   - Current version: $current_version"
+    log "   - Current version: $current_version"
 
     # ---------------------------
     # Perform Upgrade
     # ---------------------------
     if [ "$dry_run" = "true" ]; then
-        echo "   - Dry-run mode: not upgrading $app_name"
+        log "   - Dry-run mode: not upgrading $app_name"
         new_version="$current_version (dry-run)"
         log_content+="$app_name | $current_version → $new_version\n"
         ((upgrade_count++))
@@ -105,34 +106,49 @@ while IFS=$'\t' read -r app_name current_version has_update; do
                 sleep 5
                 new_version=$(midclt call app.config "$app_name" | jq -r '.ix_context.app_metadata.version // "unknown"')
             done
-            echo "   - New version:    $new_version"
+            log "   - New version:    $new_version"
             log_content+="$app_name | $current_version → $new_version\n"
             ((upgrade_count++))
         fi
     fi
 
-    echo "-----------------------------------------"
+    log "-----------------------------------------"
 done < <(echo "$apps_list")
 
 # ---------------------------
 # Final Status Reporting
 # ---------------------------
-echo "[$(date)] Successfully upgraded $upgrade_count app(s)"
+log "Successfully upgraded $upgrade_count app(s)"
+
 if [ "$discord_enabled" = "true" ]; then
-    curl -s \
-      -H "Content-Type: application/json" \
-      -d "{\"content\":\"[$hostname] Successfully upgraded $upgrade_count app(s):\n$log_content\"}" \
-      "$discord_webhook" > /dev/null 2>&1
+    if [ "$dry_run" = "true" ]; then
+        curl -s \
+        -H "Content-Type: application/json" \
+        -d "{\"content\":\"[$hostname] (Dry Run) Would have upgraded $upgrade_count app(s):\n$log_content\"}" \
+        "$discord_webhook" > /dev/null 2>&1
+    else
+        curl -s \
+        -H "Content-Type: application/json" \
+        -d "{\"content\":\"[$hostname] Successfully upgraded $upgrade_count app(s):\n$log_content\"}" \
+        "$discord_webhook" > /dev/null 2>&1
+    fi
 fi
 if [ "$slack_enabled" = "true" ]; then
-    curl -s \
-      -H "Content-Type: application/json" \
-      -d "{\"content\":\"[$hostname] Successfully upgraded $upgrade_count app(s):\n$log_content\"}" \
-      "$slack_webhook" > /dev/null 2>&1
+    if [ "$dry_run" = "true" ]; then
+        curl -s \
+        -H "Content-Type: application/json" \
+        -d "{\"content\":\"[$hostname] (Dry Run) Would have upgraded $upgrade_count app(s):\n$log_content\"}" \
+        "$slack_webhook" > /dev/null 2>&1
+    else
+        curl -s \
+        -H "Content-Type: application/json" \
+        -d "{\"content\":\"[$hostname] Successfully upgraded $upgrade_count app(s):\n$log_content\"}" \
+        "$slack_webhook" > /dev/null 2>&1
+    fi
 fi
 
 # ---------------------------
 # Cleanup
 # ---------------------------
-echo "[$(date)] Script execution completed"
+log "Script execution completed"
 exit 0
