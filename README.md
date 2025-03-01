@@ -3,3 +3,29 @@ I cannot guarantee stability or availability of these scripts. I update them as 
 
 ## update-apps
 Automatic updates for non-custom apps, uses Discord Webhook for notifications.
+Installation:
+```
+1. Create a dataset for running scripts, i.e. tank/bin
+2. Place the script and configuration file in /mnt/tank/bin/update-apps/
+3. Create a cronjob to run the script however often, I run it every 30 minutes.
+```
+Configuration:
+```
+General:
+hostname: Hostname sent with the webhook notification. If unset, use the hostname of the system.
+
+Discord:
+enabled: Whether to send a webhook notification to Discord.
+webhook_url: Webhook URL to send the notification to.
+
+Slack:
+enabled: Whether to send a webhook notification to Slack.
+webhook_url: Webhook URL to send the notification to.
+
+Exclude:
+apps: List of apps to exclude from updating.
+
+Debug:
+enabled: Whether to print debug messages to the console.
+dry_run: Run the script without actually upgrading any apps, webhook notifications will still be sent.
+```
