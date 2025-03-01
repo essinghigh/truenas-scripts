@@ -24,8 +24,14 @@ if [ -f "$CONFIG_FILE" ]; then
 else
     echo "Config file not found, proceeding with defaults."
     hostname=$(hostname)
-    discord_enabled="true"
+    discord_enabled="false"
+    slack_enabled="false"
+    debug_enabled="false"
     dry_run="false"
+fi
+
+if [ "$debug_enabled" = "true" ]; then
+    echo "DEBUG: Config loaded - hostname: $hostname, discord_enabled: $discord_enabled, slack_enabled: $slack_enabled, dry_run: $dry_run"
 fi
 
 log_content=""
@@ -78,6 +84,10 @@ while IFS=$'\t' read -r app_name current_version has_update; do
     [ "$has_update" != "true" ] && continue
 
     echo "[$(date)] Processing: $app_name"
+    if [ "$debug_enabled" = "true" ]; then
+        echo "DEBUG: App $app_name - current version: $current_version, has_update: $has_update"
+    fi
+
     echo "   - Current version: $current_version"
 
     # ---------------------------
