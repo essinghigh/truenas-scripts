@@ -5,8 +5,8 @@ I cannot guarantee stability or availability of these scripts. I update them as 
 Automatic updates for non-custom apps, uses Discord Webhook for notifications.
 Installation:
 ```
-1. Create a dataset for running scripts, i.e. tank/bin
-2. Place the script and configuration file in /mnt/tank/bin/update-apps/
+1. Create a dataset for running scripts, i.e. tank/bin.
+2. Place the script and configuration file in /mnt/tank/bin/update-apps/ (alternatively, clone the repository in /mnt/tank/bin).
 3. Create a cronjob to run the script however often, I run it every 30 minutes.
 ```
 Configuration:
