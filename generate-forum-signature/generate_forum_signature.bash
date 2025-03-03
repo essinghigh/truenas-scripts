@@ -11,10 +11,10 @@ get_motherboard_info() {
 get_zfs_pool_info() {
     midclt call pool.query 2>/dev/null | jq -r '
         .[] |
-        [
-            .name, 
+        if (.topology.data[0].type == "DISK") then
+          [
+            .name,
             "\(.topology.data | length) x \(.topology.data[0].type)",
-            (if (.topology.data[0].type == "DISK") then "" else "\( .topology.data[0].children | length) wide" end),
             (
                 (.size_str | tonumber) |
                 if . >= 1099511627776 then
@@ -33,19 +33,52 @@ get_zfs_pool_info() {
             ),
             (
                 [
-                    if (.topology.special | length > 0) then "M" else null end,
-                    if (.topology.log | length > 0) then "L" else null end,
-                    if (.topology.cache | length > 0) then "C" else null end,
-                    if (.topology.spare | length > 0) then "S" else null end,
-                    if (.topology.dedup | length > 0) then "D" else null end
+                    if (.topology.special | length > 0) then "M" else empty end,
+                    if (.topology.log | length > 0) then "L" else empty end,
+                    if (.topology.cache | length > 0) then "C" else empty end,
+                    if (.topology.spare | length > 0) then "S" else empty end,
+                    if (.topology.dedup | length > 0) then "D" else empty end
                 ] | join("")
             )
-        ] | join(" | ")
+          ]
+        else
+          [
+            .name,
+            "\(.topology.data | length) x \(.topology.data[0].type)",
+            "\( .topology.data[0].children | length) wide",
+            (
+                (.size_str | tonumber) |
+                if . >= 1099511627776 then
+                    "\((./1099511627776 * 100 + 0.5) | floor / 100) TiB Total"
+                else 
+                    "\((./1073741824 * 100 + 0.5) | floor / 100) GiB Total"
+                end
+            ),
+            (
+                (.free_str | tonumber) |
+                if . >= 1099511627776 then 
+                    "\((./1099511627776 * 100 + 0.5) | floor / 100) TiB Available"
+                else 
+                    "\((./1073741824 * 100 + 0.5) | floor / 100) GiB Available"
+                end
+            ),
+            (
+                [
+                    if (.topology.special | length > 0) then "M" else empty end,
+                    if (.topology.log | length > 0) then "L" else empty end,
+                    if (.topology.cache | length > 0) then "C" else empty end,
+                    if (.topology.spare | length > 0) then "S" else empty end,
+                    if (.topology.dedup | length > 0) then "D" else empty end
+                ] | join("")
+            )
+          ]
+        end
+        | join(" | ")
     ' 2>/dev/null |
     awk -F '|' '
         {
-            gsub(/\.0 (T|G)iB/, " \\1iB", $4);
-            gsub(/\.0 (T|G)iB/, " \\1iB", $5);
+            gsub(/\.0 (T|G)iB/, " \1iB", $4);
+            gsub(/\.0 (T|G)iB/, " \1iB", $5);
             gsub(/[ \t]+\|[ \t]+/, " | ", $0);
             print $0
         }
