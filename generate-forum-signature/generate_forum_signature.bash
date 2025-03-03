@@ -14,10 +14,10 @@ get_zfs_pool_info() {
         [
             .name, 
             "\(.topology.data | length) x \(.topology.data[0].type)",
-            "\(.topology.data[0].children | length) wide",
+            (if (.topology.data[0].type == "DISK") then "" else "\( .topology.data[0].children | length) wide" end),
             (
                 (.size_str | tonumber) |
-                if . >= 1099511627776 then 
+                if . >= 1099511627776 then
                     "\((./1099511627776 * 100 + 0.5) | floor / 100) TiB Total"
                 else 
                     "\((./1073741824 * 100 + 0.5) | floor / 100) GiB Total"
