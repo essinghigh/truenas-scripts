@@ -6,7 +6,24 @@ import os
 import sys
 import datetime
 
+"""
+Automated TrueNAS configuration backup utility.
+Handles config backup creation via midclt API calls and file download.
+Maintains versioned backups with timestamp and system version metadata.
+"""
+
 def midclt_runner(call_args):
+    """Execute midclt command and handle errors.
+    
+    Args:
+        call_args (list): midclt command arguments as list
+        
+    Returns:
+        dict: Parsed JSON response from midclt
+        
+    Raises:
+        SystemExit: On command failure or JSON decode error
+    """
     try:
         result = subprocess.check_output(call_args, stderr=subprocess.STDOUT)
         return json.loads(result)
@@ -20,13 +37,24 @@ def midclt_runner(call_args):
         sys.exit(1)
 
 def main():
+    """Main backup execution flow.
+    
+    1. Parse command line arguments
+    2. Get system version info
+    3. Generate backup filename with metadata
+    4. Initiate config backup via midclt API
+    5. Retrieve download URL from response
+    6. Download and save backup file
+    """
     parser = argparse.ArgumentParser(description="Automagically backup TrueNAS config file using midclt.")
     parser.add_argument(
         "--output-dir",
         required=True,
-        help="Directory to save the backup file."
+        help="Directory to save the backup file. Will be created if it does not exist."
     )
     args = parser.parse_args()
+    
+    # Get TrueNAS version for filename and debugging
     try:
         with open('/etc/version', 'r') as f:
             truenas_version = f.read().strip()
@@ -35,7 +63,7 @@ def main():
         truenas_version = "unknown"
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-    backup_filename = f"truenas-{truenas_version}-{timestamp}.tar"
+    backup_filename = f"truenas-{truenas_version}-{timestamp}.tar"  # Format: truenas-<version>-<timestamp>.tar
     
     midclt_download_cmd = [
         "midclt", "call", "core.download",
