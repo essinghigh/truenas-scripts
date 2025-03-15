@@ -12,17 +12,11 @@ def main():
     parser.add_argument("--output-dir", required=True, help="Directory to save the backup file. Will be created if it does not exist.")
     args = parser.parse_args()
 
-    token_cmd = ["midclt", "call", "auth.generate_token", "30", "{}", "false", "false"]
-    result = subprocess.check_output(token_cmd, stderr=subprocess.STDOUT)
-    token = result.decode().strip()
-    # print("Generated token:", token)
+    with Client() as c:
+        token = c.call("auth.generate_token", 30, {}, False, True)
+        ui_port = c.call("system.general.config")["ui_httpsport"]
 
-    ui_port_cmd = ["midclt", "call", "system.general.config"]
-    result = subprocess.check_output(ui_port_cmd, stderr=subprocess.STDOUT)
-    ui_port = json.loads(result.decode().strip()).get("ui_httpsport")
-    # print("UI port:", ui_port)
-
-    with Client(uri=f"wss://localhost:{ui_port}/websocket", verify_ssl=False) as c:
+    with Client(uri=f"wss://localhost:{ui_port}/api/current", verify_ssl=False) as c:
         result = c.call("auth.login_with_token", token)
         print("Login result:", result)
 
