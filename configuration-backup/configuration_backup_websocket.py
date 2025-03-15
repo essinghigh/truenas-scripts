@@ -10,7 +10,7 @@ def main():
     parser.add_argument("--output-dir", required=True, help="Directory to save the backup file. Will be created if it does not exist.")
     args = parser.parse_args()
 
-    token_cmd = ["midclt", "call", "auth.generate_token", "300", "{}", "false", "false"]
+    token_cmd = ["midclt", "call", "auth.generate_token", "30", "{}", "false", "false"]
     result = subprocess.check_output(token_cmd, stderr=subprocess.STDOUT)
     token = result.decode().strip()
     print("Generated token:", token)
