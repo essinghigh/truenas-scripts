@@ -1,7 +1,5 @@
 import argparse
 import os
-import json
-import subprocess
 from truenas_api_client import Client
 from datetime import datetime
 import urllib3
