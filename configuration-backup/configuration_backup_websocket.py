@@ -13,12 +13,12 @@ def main():
     token_cmd = ["midclt", "call", "auth.generate_token", "30", "{}", "false", "false"]
     result = subprocess.check_output(token_cmd, stderr=subprocess.STDOUT)
     token = result.decode().strip()
-    print("Generated token:", token)
+    # print("Generated token:", token)
 
     ui_port_cmd = ["midclt", "call", "system.general.config"]
     result = subprocess.check_output(ui_port_cmd, stderr=subprocess.STDOUT)
     ui_port = json.loads(result.decode().strip()).get("ui_port")
-    print("UI port:", ui_port)
+    # print("UI port:", ui_port)
 
     with Client(uri=f"ws://localhost:{ui_port}/websocket") as c:
         result = c.call("auth.login_with_token", token)
@@ -35,12 +35,11 @@ def main():
         backup_filename = f"truenas-{truenas_version}-{timestamp}.tar"
 
         config_result = c.call("core.download", "config.save", [{"secretseed": True, "root_authorized_keys": True}], backup_filename)
-        print("Config result:", config_result)
-        download_id = config_result[0]
+        # print("Config result:", config_result)
         download_path = config_result[1]
 
         download_url = f"http://localhost:{ui_port}{download_path}"
-        print("Download URL:", download_url)
+        # print("Download URL:", download_url)
 
         import requests
         response = requests.get(download_url, verify=False, stream=True)
