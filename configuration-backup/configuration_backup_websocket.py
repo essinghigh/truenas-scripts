@@ -4,8 +4,10 @@ import json
 import subprocess
 from truenas_api_client import Client
 from datetime import datetime
+import urllib3
 
 def main():
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     parser = argparse.ArgumentParser(description="Automated TrueNAS configuration backup utility.")
     parser.add_argument("--output-dir", required=True, help="Directory to save the backup file. Will be created if it does not exist.")
     args = parser.parse_args()
@@ -17,10 +19,10 @@ def main():
 
     ui_port_cmd = ["midclt", "call", "system.general.config"]
     result = subprocess.check_output(ui_port_cmd, stderr=subprocess.STDOUT)
-    ui_port = json.loads(result.decode().strip()).get("ui_port")
+    ui_port = json.loads(result.decode().strip()).get("ui_httpsport")
     # print("UI port:", ui_port)
 
-    with Client(uri=f"ws://localhost:{ui_port}/websocket") as c:
+    with Client(uri=f"wss://localhost:{ui_port}/websocket", verify_ssl=False) as c:
         result = c.call("auth.login_with_token", token)
         print("Login result:", result)
 
@@ -38,7 +40,7 @@ def main():
         # print("Config result:", config_result)
         download_path = config_result[1]
 
-        download_url = f"http://localhost:{ui_port}{download_path}"
+        download_url = f"https://localhost:{ui_port}{download_path}"
         # print("Download URL:", download_url)
 
         import requests
