@@ -198,21 +198,22 @@ def main() -> int:
 
     log(f"Successfully upgraded {total_upgrades} app(s)")
 
-    if discord_enabled:
-        message = f"[{hostname}] "
-        if dry_run:
-            message += f"(Dry Run) Would have upgraded {total_upgrades} app(s):\n" + "\n".join(log_content)
-        else:
-            message += f"Successfully upgraded {total_upgrades} app(s):\n" + "\n".join(log_content)
-        send_webhook_notification(discord_webhook, message)
+    if total_upgrades > 0:
+        if discord_enabled:
+            message = f"[{hostname}] "
+            if dry_run:
+                message += f"(Dry Run) Would have upgraded {total_upgrades} app(s):\n" + "\n".join(log_content)
+            else:
+                message += f"Successfully upgraded {total_upgrades} app(s):\n" + "\n".join(log_content)
+            send_webhook_notification(discord_webhook, message)
 
-    if slack_enabled:
-        message = f"[{hostname}] "
-        if dry_run:
-            message += f"(Dry Run) Would have upgraded {total_upgrades} app(s):\n" + "\n".join(log_content)
-        else:
-            message += f"Successfully upgraded {total_upgrades} app(s):\n" + "\n".join(log_content)
-        send_webhook_notification(slack_webhook, message)
+        if slack_enabled:
+            message = f"[{hostname}] "
+            if dry_run:
+                message += f"(Dry Run) Would have upgraded {total_upgrades} app(s):\n" + "\n".join(log_content)
+            else:
+                message += f"Successfully upgraded {total_upgrades} app(s):\n" + "\n".join(log_content)
+            send_webhook_notification(slack_webhook, message)
 
     log("Script execution completed")
     return 0
