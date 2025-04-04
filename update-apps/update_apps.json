@@ -1,0 +1,18 @@
+{
+  "hostname": "meow",
+  "discord": {
+    "enabled": true,
+    "webhook_url": "https://discord.com/api/webhooks/meow"
+  },
+  "slack": {
+    "enabled": false,
+    "webhook_url": "https://hooks.slack.com/services/T00000000/B00000000/X00000000"
+  },
+  "exclude": {
+    "apps": ["pihole", "example"]
+  },
+  "debug": {
+    "enabled": false,
+    "dry_run": true
+  }
+}

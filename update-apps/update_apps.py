@@ -14,6 +14,7 @@ def log(message: str) -> None:
     timestamp = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
     print(f"{timestamp} {message}")
 
+
 def parse_toml(config_path: str) -> dict:
     """Parser for the TOML config file."""
     default_config = {
@@ -22,11 +23,9 @@ def parse_toml(config_path: str) -> dict:
         "slack": {"enabled": False, "webhook_url": ""},
         "exclude": {"apps": []},
         "debug": {"enabled": False, "dry_run": False}
-    }
-    
+    } 
     if not os.path.isfile(config_path):
         return default_config
-
     config = {
         "discord": {},
         "slack": {},
@@ -34,44 +33,77 @@ def parse_toml(config_path: str) -> dict:
         "debug": {}
     }
     current_section = None
-
     with open(config_path, 'r') as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
-
             section_match = re.match(r'\[(.*)\]', line)
             if section_match:
                 current_section = section_match.group(1)
                 continue
-
             if '=' in line:
                 key, value = (item.strip() for item in line.split('=', 1))
-
                 if current_section == "general" and key == "hostname":
                     config["hostname"] = value.strip('"')
                     continue
-
                 if key == "apps" and current_section == "exclude":
-                    match = re.search(r'\[(.*)\]', value)
-                    if match:
-                        apps_str = match.group(1)
-                        config["exclude"]["apps"] = [app.strip(' "') for app in apps_str.split(',')]
+                    apps_str = re.sub(r'^\[|\]$', '', value)
+                    apps = []
+                    in_quotes = False
+                    current_app = ""
+                    for char in apps_str:
+                        if char == '"' and (not current_app.endswith('\\') or not in_quotes):
+                            in_quotes = not in_quotes
+                            current_app += char
+                        elif char == ',' and not in_quotes:
+                            apps.append(current_app.strip(' "'))
+                            current_app = ""
+                        else:
+                            current_app += char
+                    if current_app:
+                        apps.append(current_app.strip(' "'))
+                    
+                    config["exclude"]["apps"] = apps
                     continue
-
                 if value.lower() in ("true", "false"):
                     parsed_value = (value.lower() == "true")
                 else:
                     parsed_value = value.strip('"')
-
                 if current_section in config:
                     config[current_section][key] = parsed_value
-
     if "hostname" not in config:
         config["hostname"] = socket.gethostname()
-
     return config
+
+
+def load_config(script_dir: str) -> dict:
+    """Load configuration from JSON or convert from TOML if needed."""
+    json_config_path = os.path.join(script_dir, "update_apps.json")
+    toml_config_path = os.path.join(script_dir, "update_apps.toml")
+    if os.path.isfile(json_config_path):
+        try:
+            with open(json_config_path, 'r') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            log("Error parsing JSON config file, falling back to default")
+    if os.path.isfile(toml_config_path):
+        try:
+            config = parse_toml(toml_config_path)
+            with open(json_config_path, 'w') as f:
+                json.dump(config, f, indent=4)
+            os.remove(toml_config_path)
+            log(f"Converted TOML config to JSON and removed TOML file")
+            return config
+        except Exception as e:
+            log(f"Error converting TOML to JSON: {e}")
+    return {
+        "hostname": socket.gethostname(),
+        "discord": {"enabled": False, "webhook_url": ""},
+        "slack": {"enabled": False, "webhook_url": ""},
+        "exclude": {"apps": []},
+        "debug": {"enabled": False, "dry_run": False}
+    }
 
 
 def run_command(command: str) -> str:
@@ -111,17 +143,17 @@ def upgrade_app(app: dict, config: dict, log_content: list, debug_enabled: bool,
     """Upgrade a single app if eligible."""
     app_name = app.get("name", "")
     current_version = app.get("version", "")
-
-    if app_name in config.get("exclude", {}).get("apps", []):
+    excluded_apps = config.get("exclude", {}).get("apps", [])
+    if debug_enabled:
+        log(f"DEBUG: Checking if app '{app_name}' is in exclude list: {excluded_apps}")
+    if app_name in excluded_apps:
         log(f"Skipping excluded app: {app_name}")
         log("-----------------------------------------")
         return
-
     log(f"Processing: {app_name}")
     if debug_enabled:
         log(f"DEBUG: App {app_name} - current version: {current_version}, has_update: {app.get('upgrade_available', False)}")
     log(f"   - Current version: {current_version}")
-
     if dry_run:
         log(f"   - Dry-run mode: not upgrading {app_name}")
         new_version = f"{current_version} (dry-run)"
@@ -148,9 +180,7 @@ def upgrade_app(app: dict, config: dict, log_content: list, debug_enabled: bool,
 def main() -> int:
     """Main entry point for the update process."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    config_file = os.path.join(script_dir, "update_apps.toml")
-    config = parse_toml(config_file)
-
+    config = load_config(script_dir)
     hostname = config.get("hostname", socket.gethostname())
     debug_enabled = config.get("debug", {}).get("enabled", False)
     dry_run = config.get("debug", {}).get("dry_run", False)
@@ -158,36 +188,31 @@ def main() -> int:
     discord_webhook = config.get("discord", {}).get("webhook_url", "")
     slack_enabled = config.get("slack", {}).get("enabled", False)
     slack_webhook = config.get("slack", {}).get("webhook_url", "")
-
+    excluded_apps = config.get("exclude", {}).get("apps", [])
     if debug_enabled:
         log(f"DEBUG: Config loaded - hostname: {hostname}, discord_enabled: {discord_enabled}, slack_enabled: {slack_enabled}, dry_run: {dry_run}")
-
+        log(f"DEBUG: Excluded apps: {excluded_apps}")
     log("Starting catalog sync...")
     run_command("midclt call catalog.sync")
     log("-----------------------------------------")
-
     log("Checking for non-custom apps with available upgrades...")
     apps_json = run_command("midclt call app.query")
     if not apps_json:
         log("Failed to query apps")
         return 1
-
     apps_data = json.loads(apps_json)
     upgradable_apps = [
         app for app in apps_data
         if not app.get("custom_app", False) and app.get("upgrade_available", False)
     ]
-
     if not upgradable_apps:
         log("No updates available for non-custom applications")
         log("-----------------------------------------")
         return 0
-
     log("Found updates for the following apps:")
     for app in upgradable_apps:
         log(f"• {app.get('name', '')} (Current: {app.get('version', '')})")
     log("-----------------------------------------")
-
     total_upgrades = 0
     log_content = []
     for app in upgradable_apps:
@@ -195,9 +220,7 @@ def main() -> int:
         upgrade_app(app, config, log_content, debug_enabled, dry_run)
         if len(log_content) > before_count:
             total_upgrades += 1
-
     log(f"Successfully upgraded {total_upgrades} app(s)")
-
     if total_upgrades > 0:
         if discord_enabled:
             message = f"[{hostname}] "
@@ -206,7 +229,6 @@ def main() -> int:
             else:
                 message += f"Successfully upgraded {total_upgrades} app(s):\n" + "\n".join(log_content)
             send_webhook_notification(discord_webhook, message)
-
         if slack_enabled:
             message = f"[{hostname}] "
             if dry_run:
@@ -214,9 +236,9 @@ def main() -> int:
             else:
                 message += f"Successfully upgraded {total_upgrades} app(s):\n" + "\n".join(log_content)
             send_webhook_notification(slack_webhook, message)
-
     log("Script execution completed")
     return 0
+
 
 if __name__ == "__main__":
     try:
