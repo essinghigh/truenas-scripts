@@ -83,12 +83,12 @@ Configuration options:
 
 ## Configuration Backup
 
-Automates the backup of the TrueNAS configuration file using midclt. This script retrieves the TrueNAS version, downloads the configuration via midclt, and saves it as a tar file in the specified output directory.
+Automates the backup of the TrueNAS configuration file using the websocket API and saves it as a tar file in the specified output directory.
 
 **Usage**
 
 ```
-python3 truenas-scripts/configuration-backup/configuration_backup.py --output-dir /path/to/backup
+python3 truenas-scripts/configuration-backup/configuration_backup_websocket.py --output-dir /path/to/backup
 ```
 
 ---
