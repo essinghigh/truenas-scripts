@@ -90,6 +90,9 @@ Automates the backup of the TrueNAS configuration file using the websocket API a
 ```
 python3 truenas-scripts/configuration-backup/configuration_backup_websocket.py --output-dir /path/to/backup
 ```
+```
+0 3 * * * /usr/bin/python3 /mnt/data/bin/truenas-scripts/configuration-backup/configuration_backup_websocket.py --output-dir /mnt/tank/dataset > /dev/null
+```
 
 ---
 
