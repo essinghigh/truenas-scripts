@@ -5,12 +5,50 @@ import requests
 import os
 import sys
 import datetime
+import re
 
 """
 Automated TrueNAS configuration backup utility.
 Handles config backup creation via midclt API calls and file download.
 Maintains versioned backups with timestamp and system version metadata.
 """
+
+def check_version_compatibility():
+    """Check if the TrueNAS version is compatible with this script.
+    
+    Versions above Electric Eel (25.04.0) need to use the websocket variant.
+    
+    Returns:
+        str: The detected TrueNAS version string
+        
+    Raises:
+        SystemExit: If version is above 25.04.0 (Fangtooth)
+    """
+    try:
+        with open('/etc/version', 'r') as f:
+            full_version = f.read().strip()
+            
+        # Extract the base version (e.g., 25.04.0)
+        version_match = re.match(r'(\d+\.\d+\.\d+)', full_version)
+        if version_match:
+            base_version = version_match.group(1)
+        else:
+            base_version = full_version
+            
+        version_parts = [int(part) for part in base_version.split('.')]
+        if len(version_parts) >= 2 and (
+            version_parts[0] > 24 or 
+            (version_parts[0] == 24 and version_parts[1] >= 10)
+        ):
+            print("WARNING: This script is unsupported on versions above Electric Eel.")
+            print("Please use the websocket variant of the script found here:")
+            print("https://github.com/essinghigh/truenas-scripts/tree/main/configuration-backup")
+            sys.exit(1)
+            
+        return full_version
+    except Exception as e:
+        print(f"Error reading TrueNAS version: {e}")
+        return "unknown"
 
 def midclt_runner(call_args):
     """Execute midclt command and handle errors.
@@ -46,6 +84,9 @@ def main():
     5. Retrieve download URL from response
     6. Download and save backup file
     """
+    # Check TrueNAS version compatibility first
+    truenas_version = check_version_compatibility()
+    
     parser = argparse.ArgumentParser(description="Automagically backup TrueNAS config file using midclt.")
     parser.add_argument(
         "--output-dir",
@@ -54,14 +95,7 @@ def main():
     )
     args = parser.parse_args()
     
-    # Get TrueNAS version for filename and debugging
-    try:
-        with open('/etc/version', 'r') as f:
-            truenas_version = f.read().strip()
-    except Exception as e:
-        print(f"Error reading TrueNAS version: {e}")
-        truenas_version = "unknown"
-
+    # We already have the TrueNAS version from the compatibility check
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     backup_filename = f"truenas-{truenas_version}-{timestamp}.tar"  # Format: truenas-<version>-<timestamp>.tar
     
